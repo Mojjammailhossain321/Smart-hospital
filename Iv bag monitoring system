@@ -1,0 +1,181 @@
+#include "HX711.h"
+
+#include <Wire.h>
+
+#include <hd44780.h>  // Include hd44780 library
+
+#include <hd44780ioClass/hd44780_I2Cexp.h> // i2c expander class
+
+
+// Pin connections for HX711
+
+const int LOADCELL_DOUT_PIN = 23; // DT pin
+
+const int LOADCELL_SCK_PIN = 19;  // SCK pin
+
+
+// Buzzer pin
+
+const int BUZZER_PIN = 25;
+
+
+// Initialize HX711
+
+HX711 scale;
+
+
+// LCD configuration
+
+hd44780_I2Cexp lcd; // Declare LCD object using I2C expander
+
+
+// Calibration factor for load cell
+
+float calibration_factor = 768.44; // Adjusted calibration factor
+
+
+// Variables to store weight and IV bag capacity
+
+float weight = 0;
+
+float max_weight = 1000.0; // Maximum capacity of the IV bag in ml
+
+
+void setup() {
+
+  Serial.begin(115200);
+
+  
+
+  // Initialize LCD
+
+  lcd.begin(16, 2); // Initialize the LCD with 16 columns and 2 rows
+
+  lcd.backlight();  // Turn on the backlight
+
+  
+
+  // Initialize HX711
+
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+
+  
+
+  Serial.println("Initializing scale...");
+
+  
+
+  // Tare the scale
+
+  delay(5000);
+
+  scale.tare();
+
+  Serial.println("Tare complete. Scale ready.");
+
+  
+
+  // Set calibration factor
+
+  scale.set_scale(calibration_factor);
+
+  
+
+  // Print raw readings for debugging
+
+  long raw = scale.read_average(10);
+
+  Serial.print("Raw reading after taring: ");
+
+  Serial.println(raw);
+
+
+  // Initialize buzzer pin
+
+  pinMode(BUZZER_PIN, OUTPUT);
+
+  digitalWrite(BUZZER_PIN, LOW);
+
+}
+
+
+void loop() {
+
+  // Read weight from the scale
+
+  weight = scale.get_units(20); // Average of 20 readings for better accuracy
+
+  
+
+  // Calculate the percentage of liquid remaining in the IV bag
+
+  float percentage = (weight / max_weight) * 100;
+
+
+  // Print weight and percentage on the serial monitor
+
+  Serial.print("Weight: ");
+
+  Serial.print(weight);
+
+  Serial.println(" ml");
+
+  Serial.print("Percentage: ");
+
+  Serial.print(percentage);
+
+  Serial.println(" %");
+
+  
+
+  // Display the weight and percentage on the LCD
+
+  lcd.clear();
+
+  lcd.setCursor(0, 0);
+
+  lcd.print("Weight: ");
+
+  lcd.print(weight);
+
+  lcd.print(" ml");
+
+  
+
+  lcd.setCursor(0, 1);
+
+  lcd.print("Percent: ");
+
+  lcd.print(percentage);
+
+  lcd.print(" %");
+
+  
+
+  // Check if the weight is 100 ml or less and trigger the buzzer
+
+  if (weight <= 100) {
+
+    digitalWrite(BUZZER_PIN, HIGH); // Activate the buzzer
+
+    lcd.clear();
+
+    lcd.setCursor(0, 0);
+
+    lcd.print("Change IV Bag");
+
+    lcd.setCursor(0, 1);
+
+    lcd.print("Please!");
+
+    delay(2000);  // Buzzer on for 2 seconds
+
+    digitalWrite(BUZZER_PIN, LOW);  // Turn off the buzzer
+
+  }
+
+  
+
+  delay(2000);  // 2-second delay between readings
+
+}
